@@ -1,0 +1,27 @@
+{
+  "title": "Acid Shellscape",
+  "description": "Janelas de Mac clássico flutuando num fundo preto, cada uma com uma receita feita de células de terminal: paisagem que segue o sol e o clima reais, relógio de blocos, clima, ondas, chuva de caracteres e mais. 10 fps, sem gradiente.",
+  "file": "index.html",
+  "preview": "preview.png",
+  "type": "web",
+  "tags": ["Abstract", "Pixel art"],
+  "contentrating": "Everyone",
+  "visibility": "private",
+  "version": 1,
+  "general": {
+    "properties": {
+      "tema": {
+        "index": 0, "order": 0, "text": "tema", "type": "combo", "value": "auto",
+        "options": [
+          { "label": "automático (pela hora e pelo sol)", "value": "auto" },
+          { "label": "dia", "value": "dia" },
+          { "label": "pôr do sol", "value": "poente" },
+          { "label": "noite", "value": "noite" }
+        ]
+      },
+      "celula": { "index": 1, "order": 1, "text": "tamanho da célula (px)", "type": "slider", "value": 12, "min": 6, "max": 24, "step": 2 },
+      "parallax": { "index": 2, "order": 2, "text": "parallax do mouse", "type": "slider", "value": 1, "min": 0, "max": 3, "step": 1 },
+      "cidade": { "index": 3, "order": 3, "text": "cidade do clima", "type": "textinput", "value": "Itiúba" }
+    }
+  }
+}

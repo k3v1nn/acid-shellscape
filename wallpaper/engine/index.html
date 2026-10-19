@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Acid Shellscape · janelas</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&family=Inter+Tight:wght@800&display=swap">
+<style>
+@font-face{font-family:"JetBrains Mono";font-weight:400;
+  src:local("JetBrains Mono"),local("JetBrainsMono-Regular"),url("fonts/JetBrainsMono-Regular.woff2") format("woff2")}
+*{box-sizing:border-box;margin:0}
+html,body{width:100%;height:100%;background:#121014;overflow:hidden}
+canvas{display:block;width:100vw;height:100vh;touch-action:none}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<script>
+/* ==========================================================================
+   Acid Shellscape · janelas (protótipo do wallpaper de celular)
+   por Kevin · github @k3v1nn
+
+   Janelas de Mac clássico flutuando num fundo preto. Dentro de cada uma, uma
+   receita do estilo: paisagem, sol, ondas, terminal, contador da hora.
+   Tudo se alinha a uma célula medida em dp (densidade da tela), então o mesmo
+   código serve para 1080 px, 1440 px ou um tablet. 10 fps, sem easing, sem
+   gradiente, aleatório só por hash(coluna, linha, semente).
+
+   parâmetros de URL (opcionais):
+     ?tema=auto|dia|poente|noite   &hora=18.5   &rapido=1 (1 h por segundo)
+     &celula=5.6 (tamanho da célula em dp)      &fps=10     &parallax=1
+     &preto=1 (fundo #000, melhor para OLED)    &fim=1 (pula a abertura)
+     &dpr=3.5 (força a densidade, para testar no desktop)   &semente=5
+   ========================================================================== */
+(() => {
+  'use strict';
+  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+  const Q = new URLSearchParams(location.search);
+  const num = (k, d) => (Q.has(k) && isFinite(parseFloat(Q.get(k)))) ? parseFloat(Q.get(k)) : d;
+  const DEF_CELL = ((typeof innerWidth === 'number' && innerWidth) || 412) > ((typeof innerHeight === 'number' && innerHeight) || 891) ? 12 : 5.6;   // desktop: célula maior
+  const cfg = {
+    tema: ['dia', 'poente', 'noite'].includes(Q.get('tema')) ? Q.get('tema') : 'auto',
+    hora: Q.has('hora') ? num('hora', null) : null,
+    rapido: num('rapido', 0),
+    celula: clamp(num('celula', DEF_CELL), 3, 24),
+    fps: clamp(num('fps', 10), 8, 12),
+    parallax: clamp(num('parallax', 1), 0, 3),
+    preto: Q.get('preto') === '1',
+    fim: Q.has('fim'),
+    dpr: num('dpr', 0),
+    cidade: Q.get('cidade') || '', lat: num('lat', -10.69), lon: num('lon', -39.85)
+  };
+  let seed = Math.round(num('semente', 5));
+
+  /* ---------- paletas (tokens) ---------- */
+  const GROUND = cfg.preto ? '#000000' : '#121014', INK = '#ece8f0', CHROME = '#5d5a62', LINE = '#3a3641', DIM = '#8d8a93', YELLOW = '#e6e61e';
+  const TH = {
+    poente: { bg: '#1d1535', bands: ['#1d1535', '#4b2a73', '#9a4f9e', '#e9c4ff', '#f28c6a', '#f6c54a'],
+      sun: '#f28c6a', halo: '#e6e61e', cloud: '#ffd0e8', cloudThr: .54, mtn: ['#6a3f8c', '#3a2459', '#150f22'], rim: '#f28c6a',
+      water: { bg: '#1d1535', col: '#5a2f78', hi: '#e9c4ff', refl: '#f28c6a' } },
+    dia: { bg: '#0f3d73', bands: ['#0f4f93', '#1f74c4', '#3f89cc', '#7fb2de', '#cfe0ea'],
+      sun: '#e6e61e', halo: '#f4f6f8', cloud: '#ffffff', cloudThr: .5, mtn: ['#8fb0d0', '#2f6aa8', '#10304f'], rim: '#e8f0f6',
+      water: { bg: '#0f3d73', col: '#1f74c4', hi: '#cfe0ea', refl: '#e6e61e' } },
+    noite: { bg: '#090b18', bands: ['#07070c', '#0c0f24', '#101a3e', '#17285a', '#1f3a6e'],
+      sun: '#ece8f0', halo: '#6f8fd0', cloud: '#3a4d94', cloudThr: .58, mtn: ['#26356b', '#161c3d', '#0a0b16'], rim: '#8fa8d8',
+      water: { bg: '#090b18', col: '#16224a', hi: '#6f8fd0', refl: '#ece8f0' }, stars: true, aurora: '#c6f23a' }
+  };
+
+  /* ---------- hora → cena → posição do sol ou da lua ---------- */
+  const startMs = performance.now();
+  const FIXED_HOUR = { dia: 12.3, poente: 17.2, noite: 23.5 };
+  function hourNow(now) {
+    if (cfg.hora != null) return ((cfg.hora % 24) + 24) % 24;
+    if (cfg.tema !== 'auto' && !cfg.rapido) return FIXED_HOUR[cfg.tema];
+    const d = new Date(), base = d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600;
+    return (((base + (now - startMs) / 1000 * cfg.rapido) % 24) + 24) % 24;
+  }
+  let SR = 5.5, SS = 17.5, cloudAdj = 0, rainLvl = 0;                  // vêm do clima (padrões sem rede)
+  const sceneFor = h => (h >= SR + 1.5 && h < SS - .5) ? 'dia' : (h >= SR - .5 && h < SS + 2) ? 'poente' : 'noite';
+  function body(key, h) {
+    const st = SR - .5, en = SS + 2;
+    if (key === 'noite') { const hh = h < st ? h + 24 : h, v = clamp((hh - en) / (st + 24 - en)); return { x: .80 - .48 * v, y: .78 - .52 * Math.sin(Math.PI * v), rad: 2.7 } }
+    const u = clamp((h - st) / (en - st)), y = .78 - .56 * Math.sin(Math.PI * u);
+    return { x: .80 - .48 * u, y, rad: 3.3 + Math.max(0, y - .3) * 4.4 };
+  }
+
+  /* ---------- aleatório estável e ruído ---------- */
+  const hash = (a, b, s = 0) => { let h = (a * 374761393 + b * 668265263 + s * 2246822519) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967295 };
+  const vnoise = (x, y, s) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v };
+  const fbm = (x, y, s) => { let v = 0, a = .5; for (let i = 0; i < 4; i++) { v += a * vnoise(x, y, s + i); x *= 2; y *= 2; a /= 2 } return v };
+  const hx = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  const mix = (a, b, t) => { const A = hx(a), B = hx(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})` };
+
+  /* ---------- tela, densidade e grade ---------- */
+  const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  let DPR = 1, W = 0, H = 0, cell = 16, k = 1, cols = 0, rows = 0, BW = 1, barH = 64;
+  const MONO = '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace';
+  const DISPLAY = '"Inter Tight", "Helvetica Neue", Arial, sans-serif';
+
+  function resize() {
+    DPR = cfg.dpr || Math.min(window.devicePixelRatio || 1, 4);
+    W = Math.max(64, Math.round((innerWidth || 412) * DPR)); H = Math.max(64, Math.round((innerHeight || 891) * DPR));
+    const f = Math.min(1, 3400 / Math.max(W, H)); if (f < 1) { DPR *= f; W = Math.round(W * f); H = Math.round(H * f) }
+    cv.width = W; cv.height = H;
+    cell = Math.max(8, Math.round(cfg.celula * DPR / 4) * 4);        // múltiplo de 4: a matriz de pontos fecha certo
+    k = cell / 16; cols = Math.ceil(W / cell); rows = Math.ceil(H / cell);
+    BW = Math.max(1, Math.round(DPR)); barH = 4 * cell;              // 4 células ≈ os 22 dp da barra do guia
+    layout(performance.now(), booted); booted = true;                 // só a primeira montagem faz a abertura
+  }
+  let booted = false;
+
+  /* ---------- cenas dentro das janelas ---------- */
+  const PAD = 8;
+  function makeScene(w, h, o, sd) {
+    const sc = { cols: w, rows: h, seed: sd, wr: Math.round(h * o.wr), mtn: !!o.mtn, clouds: o.clouds !== false, sunScale: o.sunScale || 1, ridge: [] };
+    if (sc.mtn) {
+      const fs = Math.max(1, 64 / w), vs = Math.max(.8, h / 36);
+      sc.ridge = [0, 1, 2].map(j => {
+        const hK = [9, 6.5, 4.2][j] * vs, amp = [10, 8, 6][j] * vs, f = [.035, .06, .1][j] * fs, a = new Float32Array(w + PAD * 2);
+        for (let i = 0; i < a.length; i++) a[i] = sc.wr - Math.max(1.6 * vs, hK + amp * (fbm((i - PAD) * f + j * 13.7, j * 3.1, sd + j) - .47) * 2.6);
+        return a;
+      });
+    }
+    return sc;
+  }
+
+  /* ---------- as quatro maneiras de pintar uma célula (+ blob) ---------- */
+  const blk = (x, y, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, cell, cell) };
+  function half(x, y, bg, fg, l) {
+    if (bg) { ctx.fillStyle = bg; ctx.fillRect(x, y, cell, cell) }
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, cell, cell); ctx.clip();
+    ctx.strokeStyle = fg; ctx.globalAlpha = .3 + .7 * l; ctx.lineWidth = Math.max(1, Math.round(k));
+    const st = Math.max(2, Math.round((5 - l * 3) * k)); ctx.beginPath();
+    for (let q = -cell; q < cell * 2; q += st) { ctx.moveTo(x + q, y); ctx.lineTo(x + q + cell, y + cell); ctx.moveTo(x + q, y + cell); ctx.lineTo(x + q + cell, y) }
+    ctx.stroke(); ctx.restore();
+  }
+  function dots(x, y, bg, fg, l) {
+    if (bg) { ctx.fillStyle = bg; ctx.fillRect(x, y, cell, cell) }
+    const g = cell / 4, d = Math.max(1, Math.round(l * 3.2 * k)), o = Math.round(k); ctx.fillStyle = fg;
+    for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) ctx.fillRect(x + a * g + o, y + b * g + o, d, d);
+  }
+  function glyph(x, y, ch, fg, bg) {
+    if (bg) { ctx.fillStyle = bg; ctx.fillRect(x, y, cell, cell) }
+    ctx.fillStyle = fg; ctx.fillText(ch, x + cell * .12, y);
+  }
+  function blob(x, y, col, kk) { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x + cell / 2, y + cell / 2, cell * kk, 0, 6.283); ctx.fill() }
+
+  /* ---------- estado ---------- */
+  let tick = 0, curKey = null, fromKey = null, trans0 = 0;
+  const TRANS = 3200, START = [0, .14, .26, .38, .5, .62, .72];
+  const ptr = { x: .5, y: .5, inside: false, moved: -1e9 };
+  let curOx = 0, hostOffset = null, cloudPhase = 0, lastNow = 0;
+  const ripples = [], wins = [];
+
+  /* ---------- uma célula de cena ---------- */
+  const WAVE = '~-~=~-.~_';
+  function paintCell(win, c, r, th, bd, tm, vis) {
+    const sc = win.sc, x = win.bx + c * cell, y = win.by + r * cell, wr = sc.wr, rows_ = sc.rows;
+
+    if (r >= wr) {                                                      // água
+      if (!vis(6, c, r, (r - wr) / Math.max(1, rows_ - wr))) return;
+      const w = th.water, d = (r - wr) / Math.max(1, rows_ - wr);
+      blk(x, y, mix(w.bg, w.col, .3 + .5 * (1 - d)));
+      const spd = (1.2 + hash(0, r, 1) * 1.6) * (r % 2 ? 1 : -1), ch = WAVE[((c + Math.floor(tm * spd) + r * 3) % WAVE.length + WAVE.length) % WAVE.length];
+      const seen = clamp((.74 - bd.y) / .2), dx = Math.abs(c - bd.sx), wide = seen * (1.2 + bd.srad * .55 * (1 + d * .8)) * (.5 + hash(c, r, Math.floor(tm * 4)) * .9);
+      if (seen > 0 && dx < wide) glyph(x, y, hash(c, r, tick) > .5 ? '=' : '#', w.refl);
+      else if (ch !== ' ') glyph(x, y, ch, mix(w.col, w.hi, .25 + .6 * hash(c, r, 2) * (1 - d)));
+      return;
+    }
+    if (sc.mtn) for (let j = 2; j >= 0; j--) {                          // montanhas
+      const ri = sc.ridge[j][clamp(c + PAD, 0, sc.ridge[j].length - 1)];
+      if (r < ri || !vis(3 + j, c, r, 1 - r / rows_)) continue;
+      const m = th.mtn[j], d = r - ri, edge = d < 1, bgd = mix(m, '#000000', .55);
+      if (j === 0) half(x, y, bgd, edge ? mix(m, th.rim, .6) : m, .55 + .4 * (1 - clamp(d / 6)));
+      else if (j === 1) blk(x, y, edge ? mix(m, th.rim, .5) : mix(m, hash(c, r, 9) > .5 ? '#ffffff' : '#000000', .1 * hash(c, r, 8)));
+      else glyph(x, y, edge ? '=' : '#%@&*+'[Math.floor(hash(c, r, 4) * 6)], edge ? th.rim : mix(m, '#ffffff', .12 + .12 * hash(c, r, 6)), mix(m, '#000000', .35));
+      return;
+    }
+    const bands = th.bands.length, f = (r / wr) * bands, bi = clamp(Math.floor(f + (hash(c, r, 5) - .5) * .9), 0, bands - 1), skyCol = th.bands[bi];
+    if (vis(0, c, r, r / wr)) {                                         // céu
+      blk(x, y, skyCol);
+      if (th.stars && hash(c, r, 99) > .95 && r < wr * .62 && hash(c, r, tick >> 3) > .2) glyph(x, y, hash(c, r, 98) > .6 ? '+' : '.', INK);
+      if (th.aurora) { const yy = wr * .3 + 2.4 * Math.sin(c * .18 + tm * .4 + 1), dd = Math.abs(r - yy); if (dd < 1.6 && hash(c, r, 7) > .25) dots(x, y, null, th.aurora, 1 - dd / 1.6) }
+    }
+    if (sc.clouds) {
+      const n = fbm(c * .09 + cloudPhase, r * .33 + 4, sc.seed + 20);
+      if (r > 2 && r < wr - 1 && n > th.cloudThr + cloudAdj && vis(2, c, r, c / sc.cols)) {
+        const v = (n - th.cloudThr - cloudAdj) / .22;
+        if (v > .6) blk(x, y, mix(th.cloud, skyCol, .12));
+        else if (v > .25) half(x, y, mix(skyCol, '#000000', .2), th.cloud, v);
+        else dots(x, y, null, th.cloud, v + .2);
+      }
+    }
+    const d = Math.hypot(c - bd.sx, r - bd.sy);                         // sol ou lua
+    if (d < bd.srad + 5 && vis(1, c, r, d / (bd.srad + 5))) {
+      if (d < bd.srad + .5) blob(x, y, th.sun, d > bd.srad - .3 ? .45 : .62);
+      else if (d < bd.srad + 2.8) dots(x, y, null, th.halo, 1 - (d - bd.srad) / 2.8);
+      else if (hash(c, r, 13) < .3) glyph(x, y, '.', th.halo);
+    }
+  }
+
+  /* ---------- moldura de janela (Mac clássico) ---------- */
+  function drawFrame(X, Y, Wp, Hp, title) {
+    ctx.fillStyle = LINE; ctx.fillRect(X, Y, Wp, Hp);                   // contorno de 1 px
+    ctx.fillStyle = GROUND; ctx.fillRect(X + BW, Y + BW, Wp - 2 * BW, Hp - 2 * BW);
+    const bx = X + BW, bw = Wp - 2 * BW;
+    ctx.fillStyle = CHROME; ctx.fillRect(bx, Y + BW, bw, barH);         // barra
+    const per = Math.max(3, Math.round(4 * DPR)), th = Math.max(1, Math.round(DPR));
+    ctx.fillStyle = 'rgba(0,0,0,.35)';
+    for (let yy = Y + BW + per - th; yy < Y + BW + barH; yy += per) ctx.fillRect(bx, yy, bw, th);   // listras
+    const sq = Math.round(11 * DPR), sy = Y + BW + Math.round((barH - sq) / 2), sx = bx + Math.round(7 * DPR);
+    ctx.fillStyle = INK; ctx.fillRect(sx, sy, sq, sq); ctx.fillStyle = GROUND; ctx.fillRect(sx + BW, sy + BW, sq - 2 * BW, sq - 2 * BW);   // quadrado vazado
+    ctx.font = `400 ${Math.round(cell * 1.7)}px ${MONO}`; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    const tw = ctx.measureText(title).width, mid = bx + bw / 2, my = Y + BW + barH / 2, pad = Math.round(10 * DPR);
+    ctx.fillStyle = CHROME; ctx.fillRect(Math.round(mid - tw / 2 - pad), Y + BW, Math.round(tw + 2 * pad), barH);
+    ctx.fillStyle = INK; ctx.fillText(title, mid, my + BW);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  }
+
+  /* ---------- etiquetas e contador ---------- */
+  function chip(x, y, text, dim, fsz) {
+    const fs = Math.round(fsz || cell * 1.9); ctx.font = `400 ${fs}px ${MONO}`; ctx.textBaseline = 'top';
+    const tw = ctx.measureText(text).width, p = fs * .35, hh = Math.round(fs * 1.35);
+    ctx.fillStyle = dim ? DIM : INK; ctx.fillRect(Math.round(x), Math.round(y), Math.round(tw + 2 * p), hh);
+    ctx.fillStyle = GROUND; ctx.fillText(text, Math.round(x + p), Math.round(y + (hh - fs) / 2));
+    return hh;
+  }
+
+  /* ---------- as janelas ---------- */
+  const DEFS = [
+    { id: 'paisagem', title: 'paisagem.js', kind: 'scene', w: 64, h: 34, fx: .5, fy: .30, depth: .35, delay: 0, openMs: 6500, layered: true, pin: true },
+    { id: 'sol', title: 'sol.blob', kind: 'sun', w: 30, h: 26, fx: .85, fy: 0, depth: .8, delay: 2400, openMs: 1500 },
+    { id: 'terminal', title: 'terminal.sh', kind: 'code', w: 34, h: 18, fx: .1, fy: .62, depth: 1, delay: 3600, openMs: 1500 },
+    { id: 'ondas', title: 'ondas.txt', kind: 'waves', w: 44, h: 22, fx: .3, fy: .96, depth: .55, delay: 5400, openMs: 1500 },
+    { id: 'blocos', title: 'blocos.cell', kind: 'blocks', w: 26, h: 20, fx: .8, fy: .55, depth: .9, delay: 4200, openMs: 1300 },
+    { id: 'meio-tom', title: 'meio-tom.cell', kind: 'halftone', w: 28, h: 22, fx: .15, fy: .12, depth: .7, delay: 7000, openMs: 1300 },
+    { id: 'pontos', title: 'pontos.cell', kind: 'dots', w: 24, h: 24, fx: .7, fy: .82, depth: .85, delay: 8200, openMs: 1300 },
+    { id: 'chuva', title: 'chuva.sh', kind: 'rain', w: 22, h: 34, fx: .04, fy: .9, depth: .6, delay: 9400, openMs: 1500 },
+    { id: 'log', title: 'log.txt', kind: 'log', w: 38, h: 18, fx: .62, fy: .26, depth: .95, delay: 6200, openMs: 1300 },
+    { id: 'blob', title: 'blob.js', kind: 'blobs', w: 26, h: 22, fx: .3, fy: .5, depth: .75, delay: 10600, openMs: 1300 },
+    { id: 'clima', title: 'clima.sh', kind: 'weather', w: 30, h: 20, fx: .88, fy: .45, depth: .8, delay: 11800, openMs: 1300, pin: true },
+    { id: 'relogio', title: 'relogio.js', kind: 'clock', w: 30, h: 15, fx: .5, fy: .2, depth: 1, delay: 1200, openMs: 1500, pin: true, still: true }
+  ];
+  // as janelas não sobem para o topo nem encostam no fundo (retrato: mais folga em cima)
+  const minRow = () => rows * (rows > cols ? .12 : .04);
+  const maxRow = h => Math.max(minRow(), rows - h - 5 - rows * .03);
+  function layout(now, keepOpen) {
+    wins.length = 0;
+    const sc = clamp((cols - 6) / 66, .5, rows > cols ? 1.4 : 1);   // desktop: janelas no tamanho do celular
+    DEFS.forEach((d, i) => {
+      const w = Math.max(14, Math.round(d.w * sc)), h = Math.max(8, Math.round(d.h * sc)), sd = seed + i * 7;
+      const o = d.kind === 'scene' ? { wr: .7, mtn: true } : d.kind === 'sun' ? { wr: 1, mtn: false, sunScale: 1.9 } : d.kind === 'waves' ? { wr: 0, mtn: false, clouds: false } : null;
+      const win = { i, id: d.id, title: d.title, kind: d.kind, w, h, depth: d.depth, layered: !!d.layered, pin: !!d.pin, openMs: d.openMs, n: 0,
+        px: (cols - w - 1) * d.fx, py: minRow() + (maxRow(h) - minRow()) * d.fy,
+        vx: (.2 + .35 * hash(i, 1, seed)) * (hash(i, 2, seed) > .5 ? 1 : -1), vy: (.15 + .3 * hash(i, 3, seed)) * (hash(i, 4, seed) > .5 ? 1 : -1),
+        sc: o ? makeScene(w, h, o, sd) : null, rect: null };
+      if (d.still) { win.vx = 0; win.vy = 0 }
+      win.t0 = (cfg.fim || keepOpen) ? -1e9 : now + d.delay;
+      win.tc = win.pin ? Infinity : now + 16000 + hash(i, 5, seed) * 26000 + (cfg.fim || keepOpen ? 0 : d.delay);
+      wins.push(win);
+    });
+  }
+  const CLOSE_MS = 1100;
+  function winQ(win, now) {
+    if (now >= win.tc) return 1 - clamp((now - win.tc) / CLOSE_MS);
+    return clamp((now - win.t0) / win.openMs);
+  }
+  function stepWindows(now, dt) {
+    for (const win of wins) {
+      if (win.rect && now >= win.tc && winQ(win, now) <= 0) {          // fechou: reabre em outro lugar
+        win.n++; win.px = hash(win.i, win.n, seed) * (cols - win.w - 1); win.py = minRow() + hash(win.i, win.n, seed + 9) * (maxRow(win.h) - minRow());
+        win.t0 = now + 3000 + hash(win.i, win.n, seed + 5) * 20000; win.tc = win.t0 + win.openMs + 18000 + hash(win.i, win.n, seed + 3) * 26000;
+      }
+      win.px += win.vx * dt; win.py += win.vy * dt;
+      const mx = Math.max(0, cols - win.w - 1), my = maxRow(win.h), mnY = minRow();
+      if (win.px < 0) { win.px = 0; win.vx = Math.abs(win.vx) } else if (win.px > mx) { win.px = mx; win.vx = -Math.abs(win.vx) }
+      if (win.py < mnY) { win.py = mnY; win.vy = Math.abs(win.vy) } else if (win.py > my) { win.py = my; win.vy = -Math.abs(win.vy) }
+    }
+  }
+
+  function bodyFor(win, key, h, tm) {
+    const b = body(key, h), sc = win.sc;
+    return { y: b.y, sx: sc.cols * b.x + (hash(1, 1, seed) - .5) * .08 * sc.cols, sy: sc.wr * b.y, srad: b.rad * sc.sunScale + .25 * Math.sin(tm * 1.3) };
+  }
+
+  function drawWindow(win, now, h, tp, tm) {
+    const q = winQ(win, now); if (q <= 0) { win.rect = null; return }
+    const ox = Math.round(curOx * win.depth * 1.5), cx = Math.floor(win.px) + ox, cy = Math.floor(win.py);
+    const X = cx * cell, Y = cy * cell, Wp = win.w * cell + 2 * BW, Hp = barH + win.h * cell + 2 * BW;
+    win.rect = { x: X, y: Y, w: Wp, h: Hp };
+    drawFrame(X, Y, Wp, Hp, win.title);
+    win.bx = X + BW; win.by = Y + BW + barH;
+    ctx.save(); ctx.beginPath(); ctx.rect(win.bx, win.by, win.w * cell, win.h * cell); ctx.clip();
+
+    if (win.sc) {
+      const sc = win.sc, st = win.layered ? .24 : 1;
+      const vis = (L, c, r, bias) => q >= 1 || hash(c, r, sc.seed + L * 17) * .6 + bias * .4 < clamp((q - (win.layered ? START[L] : 0)) / st) * 1.02;
+      ctx.font = `${cell * .95}px ${MONO}`; ctx.textBaseline = 'top';
+      const toTh = TH[curKey], fromTh = TH[fromKey], toB = bodyFor(win, curKey, h, tm), fromB = bodyFor(win, fromKey, h, tm);
+      for (let r = 0; r < sc.rows; r++) for (let c = 0; c < sc.cols; c++) {
+        const useTo = tp >= 1 || hash(c, r, seed + 55) * .6 + (r / sc.rows) * .4 < tp * 1.02;
+        paintCell(win, c, r, useTo ? toTh : fromTh, useTo ? toB : fromB, tm, vis);
+      }
+      if (rainLvl > 0 && q >= 1 && sc.wr > 0) {                           // chuva de verdade, do clima
+        const dens = .03 + .035 * rainLvl, col = mix(BLUE, '#ffffff', .3);
+        for (let r = 0; r < Math.min(sc.wr, sc.rows); r++) for (let c = 0; c < sc.cols; c++)
+          if (hash(c, (((r - tick) % 61) + 61) % 61, 77) < dens) glyph(win.bx + c * cell, win.by + r * cell, '|', col);
+      }
+    } else xExtra(win, q, tm);
+    ctx.restore();
+  }
+
+  /* ---------- receitas novas ---------- */
+  const LIME = '#c6f23a', LILAC = '#b79cf2', CORAL = '#f28c6a', BLUE = '#6f8fd0', ACC = [YELLOW, CORAL, LILAC, LIME, BLUE];
+  const RAMP = '.:-=+*#%@$', DAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'], MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const VERBS = ['pintar', 'mover', 'abrir', 'tocar', 'limpar', 'somar', 'trocar'], OBJS = ['sol', 'ceu', 'onda', 'bloco', 'ponto', 'nuvem', 'janela', 'pedra'];
+  const DIG = [['01110', '10001', '10011', '10101', '11001', '10001', '01110'], ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
+    ['01110', '10001', '00001', '00010', '00100', '01000', '11111'], ['11110', '00001', '00001', '01110', '00001', '00001', '11110'],
+    ['00010', '00110', '01010', '10010', '11111', '00010', '00010'], ['11111', '10000', '11110', '00001', '00001', '10001', '01110'],
+    ['00110', '01000', '10000', '11110', '10001', '10001', '01110'], ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
+    ['01110', '10001', '10001', '01110', '10001', '10001', '01110'], ['01110', '10001', '10001', '01111', '00001', '00010', '01100']];
+  const R_ = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)) };
+  const cvis = (win, q, c, r) => q >= 1 || hash(c, r, seed + win.i * 5) < q;
+  const setCellFont = () => { ctx.font = `${cell * .95}px ${MONO}`; ctx.textBaseline = 'top' };
+  const bigDigit = (x, y, u, d, col) => { const g = DIG[Math.max(0, Math.min(9, d))]; for (let ry = 0; ry < 7; ry++) for (let cx = 0; cx < 5; cx++) if (g[ry][cx] === '1') R_(x + cx * u, y + ry * u, u, u, col) };
+
+  function xExtra(win, q, tm) {
+    const k = win.kind, tq = Math.floor(tm * 5) / 5;
+    setCellFont();
+    if (k === 'code') {
+      const bwp = win.w * cell, ind = bwp * .03, lh = 3 * cell;
+      const lines = [['$ acid-shellscape', 0], ['cell = bloco;', 0], [`seed = ${seed};`, 1], [`frame = ${String(tick).padStart(6, '0')};`, 1]];
+      let fs = cell * 1.9; ctx.font = `400 ${fs}px ${MONO}`;
+      let widest = 0; for (const l of lines) widest = Math.max(widest, ctx.measureText(l[0]).width);
+      const need = widest + fs * .7 + ind * 4 + bwp * .05; if (need > bwp * .96) fs *= bwp * .96 / need;
+      lines.forEach(([t, dim], i) => { if (q > i * .2) chip(win.bx + bwp * .05 + i * ind, win.by + cell * 1.5 + i * lh, t, !!dim, fs) });
+      if (q >= 1 && ((tick / 5) | 0) % 2 === 0) R_(win.bx + bwp * .05 + 4 * ind, win.by + cell * 1.5 + 4 * lh, cell * 1.1, fs * 1.35, INK);
+    } else if (k === 'log') {
+      const lh = 2 * cell, n = Math.floor(win.h / 2), base = Math.floor(tick / 6);
+      ctx.font = `400 ${cell * 1.25}px ${MONO}`; ctx.textBaseline = 'alphabetic';
+      const adv = ctx.measureText('0').width;
+      for (let i = 0; i < n; i++) {
+        if (q < 1 && q < (i + 1) / (n + 1)) continue;
+        const ln = base - (n - 1 - i), y = win.by + i * lh + cell * 1.45, x = win.bx + cell, hv = hash(ln, 9, seed);
+        ctx.fillStyle = DIM; ctx.fillText(String(((ln % 10000) + 10000) % 10000).padStart(4, '0'), x, y);
+        ctx.fillStyle = hv > .88 ? YELLOW : hv > .78 ? LIME : INK;
+        ctx.fillText(VERBS[Math.min(VERBS.length - 1, Math.floor(hash(ln, 1, seed) * VERBS.length))] + '(' + OBJS[Math.min(OBJS.length - 1, Math.floor(hash(ln, 2, seed) * OBJS.length))] + ')', x + adv * 5, y);
+      }
+    } else if (k === 'blocks') {
+      const ph = Math.floor(tick / 3) * .12;
+      for (let r = 0; r < win.h; r++) for (let c = 0; c < win.w; c++) {
+        if (!cvis(win, q, c, r)) continue;
+        const n = fbm(c * .16 + ph, r * .16 - ph * .5, seed + win.i * 11), x = win.bx + c * cell, y = win.by + r * cell;
+        if (n > .52) blk(x, y, ACC[Math.floor((n - .52) * 18) % ACC.length]); else if (hash(c, r, seed + (tick >> 3)) > .985) blk(x, y, INK);
+      }
+    } else if (k === 'halftone') {
+      const bg = mix(LILAC, '#000000', .82);
+      for (let r = 0; r < win.h; r++) for (let c = 0; c < win.w; c++) {
+        if (!cvis(win, q, c, r)) continue;
+        half(win.bx + c * cell, win.by + r * cell, bg, LILAC, clamp(.5 + .5 * Math.sin(c * .32 + tq * 1.2) * Math.cos(r * .3 - tq * .9)));
+      }
+    } else if (k === 'dots') {
+      for (let r = 0; r < win.h; r++) for (let c = 0; c < win.w; c++) {
+        if (!cvis(win, q, c, r)) continue;
+        const l = .5 + .5 * Math.sin(Math.hypot(c - win.w / 2, r - win.h / 2) * .5 - tq * 2.5);
+        if (l > .15) dots(win.bx + c * cell, win.by + r * cell, null, l > .85 ? LIME : CORAL, l);
+      }
+    } else if (k === 'rain') {
+      const tr = Math.floor(tm * 10) / 10;
+      for (let c = 0; c < win.w; c++) {
+        const sp = 4 + hash(c, 0, seed) * 9, len = 6 + Math.floor(hash(c, 1, seed) * 8), span = win.h + len, head = (tr * sp + hash(c, 2, seed) * span) % span;
+        for (let r = 0; r < win.h; r++) {
+          const d = head - r; if (d < 0 || d >= len || !cvis(win, q, c, r)) continue;
+          glyph(win.bx + c * cell, win.by + r * cell, RAMP[Math.min(RAMP.length - 1, Math.floor(hash(c, r, tick >> 1) * RAMP.length))], d < 1 ? INK : mix(LIME, GROUND, d / len));
+        }
+      }
+    } else if (k === 'blobs') {
+      const R = [3.4, 2.6, 2.2, 1.6], COL = [YELLOW, CORAL, LILAC, LIME], grow = clamp(q * 1.4);
+      for (let b = 0; b < 4; b++) {
+        const rad = R[b] * grow; if (rad < .6) continue;
+        const ci = Math.round(win.w / 2 + (win.w / 2 - R[b] - 1) * Math.sin(tq * (.5 + b * .23) + b * 1.7)), ri = Math.round(win.h / 2 + (win.h / 2 - R[b] - 1) * Math.cos(tq * (.4 + b * .31) + b * 2.3)), reach = Math.floor(rad + 3);
+        for (let r = Math.max(0, ri - reach); r <= Math.min(win.h - 1, ri + reach); r++) for (let c = Math.max(0, ci - reach); c <= Math.min(win.w - 1, ci + reach); c++) {
+          const d = Math.hypot(c - ci, r - ri), x = win.bx + c * cell, y = win.by + r * cell;
+          if (d < rad + .5) blob(x, y, COL[b], d > rad - .3 ? .45 : .62); else if (b === 0 && d < rad + 2.8) dots(x, y, null, YELLOW, 1 - (d - rad) / 2.8);
+        }
+      }
+    } else if (k === 'clock') {
+      const d = new Date(), hh = cfg.hora != null ? Math.floor(cfg.hora) % 24 : d.getHours(), mm = cfg.hora != null ? Math.floor((cfg.hora % 1) * 60) : d.getMinutes();
+      const wpx = win.w * cell, u = Math.max(2, Math.floor(wpx / 27)), x0 = win.bx + Math.floor((wpx - 25 * u) / 2), y0 = win.by + cell * 2;
+      if (q > .4) {
+        bigDigit(x0, y0, u, Math.floor(hh / 10), INK); bigDigit(x0 + 6 * u, y0, u, hh % 10, INK);
+        if (((tick / 5) | 0) % 2 === 0) { R_(x0 + 12 * u, y0 + 2 * u, u, u, DIM); R_(x0 + 12 * u, y0 + 4 * u, u, u, DIM) }
+        bigDigit(x0 + 14 * u, y0, u, Math.floor(mm / 10), YELLOW); bigDigit(x0 + 20 * u, y0, u, mm % 10, YELLOW);
+      }
+      if (q > .7) {
+        const date = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+        let fs = cell * 1.9; ctx.font = `400 ${fs}px ${MONO}`; const need = ctx.measureText(date).width + fs * .7; if (need > wpx * .9) fs *= wpx * .9 / need;
+        chip(x0, y0 + 7 * u + cell * 2, date, true, fs);
+      }
+    } else if (k === 'weather') xWeather(win, q);
+  }
+
+  /* ---------- clima (Open-Meteo, sem chave) ---------- */
+  const WX = { data: null, city: cfg.cidade ? cfg.cidade.toLowerCase() : 'itiúba', lat: cfg.lat, lon: cfg.lon, last: 0, busy: false };
+  const wxKey = () => WX.lat.toFixed(2) + ',' + WX.lon.toFixed(2);
+  const wxDescribe = c => c === 0 ? 'céu limpo' : c === 1 ? 'quase limpo' : c === 2 ? 'parcialmente nublado' : c === 3 ? 'nublado' : (c === 45 || c === 48) ? 'neblina' :
+    (c >= 51 && c <= 57) ? 'garoa' : (c >= 61 && c <= 67) ? 'chuva' : ((c >= 71 && c <= 77) || c === 85 || c === 86) ? 'neve' : (c >= 80 && c <= 82) ? 'pancadas' : (c === 95 || c === 96 || c === 99) ? 'trovoada' : 'tempo incerto';
+  const wxRain = c => (c >= 51 && c <= 57) ? 1 : ((c >= 61 && c <= 67) || (c >= 80 && c <= 82)) ? 2 : (c === 95 || c === 96 || c === 99) ? 3 : 0;
+  const hm = t => parseInt(t.slice(11, 13), 10) + parseInt(t.slice(14, 16), 10) / 60;
+  function wxParse(j, t) {
+    const c = j.current, d = j.daily;
+    return { temp: c.temperature_2m, feels: c.apparent_temperature, hum: c.relative_humidity_2m, code: c.weather_code, cloud: c.cloud_cover, wind: c.wind_speed_10m, isDay: c.is_day === 1,
+      sr: hm(d.sunrise[0]), ss: hm(d.sunset[0]), tmax: d.temperature_2m_max[0], tmin: d.temperature_2m_min[0], t };
+  }
+  async function wxGet(force) {
+    const now = Date.now();
+    if (WX.busy || (!force && WX.data && now - WX.last < 18e5) || (!force && now - WX.last < 12e4)) return;
+    WX.busy = true; WX.last = now;
+    try {
+      const u = `https://api.open-meteo.com/v1/forecast?latitude=${WX.lat}&longitude=${WX.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,cloud_cover,wind_speed_10m&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1`;
+      const j = await (await fetch(u)).json();
+      WX.data = wxParse(j, now);
+      try { localStorage.setItem('shellscape.wx', JSON.stringify({ k: wxKey(), t: now, j })) } catch (e) { /* sem armazenamento */ }
+    } catch (e) { /* sem rede: mantém o que tem */ } finally { WX.busy = false }
+  }
+  async function wxCity(name) {
+    try {
+      const j = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=pt&format=json`)).json();
+      const r = j.results && j.results[0]; if (!r) return;
+      WX.lat = r.latitude; WX.lon = r.longitude; WX.city = String(r.name || name).toLowerCase(); WX.data = null; wxGet(true);
+    } catch (e) { /* sem rede */ }
+  }
+  try { const c = JSON.parse(localStorage.getItem('shellscape.wx') || 'null'); if (c && c.k === wxKey()) { WX.data = wxParse(c.j, c.t); WX.last = c.t } } catch (e) { /* cache inválido */ }
+  setInterval(() => wxGet(false), 6e5);
+  if (cfg.cidade) wxCity(cfg.cidade); else wxGet(true);
+
+  const CLOUD_ROWS = [[2, 4], [1, 6], [0, 7], [0, 7]];
+  function weatherIcon(x, y, d) {
+    const code = d.code, rain = wxRain(code);
+    if (code === 0 || code === 1) {
+      for (let r = 0; r < 7; r++) for (let c = 0; c < 8; c++) {
+        const dd = Math.hypot(c - 3.5, r - 3), px = x + c * cell, py = y + r * cell;
+        if (d.isDay) { if (dd < 2.3) blob(px, py, YELLOW, .62); else if (dd < 3.6) dots(px, py, null, YELLOW, .5) }
+        else if (dd < 2.5 && Math.hypot(c - 4.8, r - 2.4) >= 2.2) blob(px, py, INK, .62);
+      }
+    } else if (code === 45 || code === 48) {
+      for (let r = 1; r < 6; r += 2) for (let c = 0; c < 8; c++) glyph(x + c * cell, y + r * cell, '=', DIM);
+    } else {
+      if (code === 2 && d.isDay) blob(x + 6 * cell, y + cell, YELLOW, .62);
+      const off = code === 2 ? 1 : 0, col = (code === 3 || rain > 0) ? DIM : INK;
+      CLOUD_ROWS.forEach((rg, i) => { for (let c = rg[0]; c <= rg[1]; c++) blk(x + c * cell, y + (i + off) * cell, col) });
+      const snow = (code >= 71 && code <= 77) || code === 85 || code === 86, ch = snow ? '*' : rain === 3 ? '/' : '|', gc = rain === 3 ? YELLOW : snow ? INK : BLUE;
+      if (rain > 0 || snow) for (let c = 1; c < 7; c += 2) for (let r = 4; r < 7; r++) if (hash(c, ((r - (tick >> 1)) % 7 + 7) % 7, 31) > .4) glyph(x + c * cell, y + r * cell, ch, gc);
+    }
+  }
+  function xWeather(win, q) {
+    const d = WX.data, x = win.bx + cell;
+    ctx.font = `400 ${cell * 1.25}px ${MONO}`; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = DIM; ctx.fillText('> ' + WX.city, x, win.by + cell * 1.9);
+    if (!d) { ctx.fillStyle = INK; ctx.fillText('buscando o clima...', x, win.by + cell * 5); return }
+    if (q > .4) {
+      const t = Math.max(-9, Math.min(99, Math.round(d.temp))), u = cell, y0 = win.by + cell * 3; let cx = x;
+      if (t < 0) { R_(cx, y0 + 3 * u, 3 * u, u, INK); cx += 4 * u }
+      const a = Math.abs(t); if (a >= 10) { bigDigit(cx, y0, u, Math.floor(a / 10), INK); cx += 6 * u }
+      bigDigit(cx, y0, u, a % 10, INK); cx += 6 * u;
+      R_(cx, y0, 2 * u, 2 * u, INK); R_(cx + BW, y0 + BW, 2 * u - 2 * BW, 2 * u - 2 * BW, GROUND);
+      setCellFont(); weatherIcon(win.bx + (win.w - 9) * cell, y0, d);
+      ctx.font = `400 ${cell * 1.25}px ${MONO}`; ctx.textBaseline = 'alphabetic';
+    }
+    if (q > .7) {
+      [[wxDescribe(d.code), INK], [`sens ${Math.round(d.feels)}° umid ${d.hum}%`, DIM], [`min ${Math.round(d.tmin)}° max ${Math.round(d.tmax)}°`, DIM], [`vento ${Math.round(d.wind)} km/h`, DIM]]
+        .forEach(([t, col], i) => { ctx.fillStyle = col; ctx.fillText(t, x, win.by + cell * (12.9 + i * 2)) });
+    }
+  }
+
+  /* ---------- sobreposições: anéis de toque e cursor ---------- */
+  const RING = '@%#*+=-:.';
+  function overlay() {
+    ctx.font = `${cell * .95}px ${MONO}`; ctx.textBaseline = 'top';
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      const R = ripples[i], age = tick - R.t0, life = 16;
+      if (age > life) { ripples.splice(i, 1); continue }
+      const rad = 1 + age * 1.3, ch = RING[Math.min(RING.length - 1, Math.floor(age / life * RING.length))];
+      for (let r = Math.max(0, Math.floor(R.r - rad - 1)); r <= Math.min(rows - 1, Math.ceil(R.r + rad + 1)); r++)
+        for (let c = Math.max(0, Math.floor(R.c - rad - 1)); c <= Math.min(cols - 1, Math.ceil(R.c + rad + 1)); c++)
+          if (Math.abs(Math.hypot(c - R.c, r - R.r) - rad) < .75 && hash(c, r, tick) > .22) glyph(c * cell, r * cell, ch, YELLOW);
+    }
+  }
+
+  /* ---------- quadro ---------- */
+  function frame(now) {
+    tick++;
+    const dt = clamp((now - lastNow) / 1000, 0, .25); lastNow = now;
+    const wd = WX.data;
+    if (wd && wd.ss > wd.sr + 4) { SR = wd.sr; SS = wd.ss; cloudAdj = (.5 - wd.cloud / 100) * .3 - ((wd.code === 45 || wd.code === 48) ? .1 : 0); rainLvl = wxRain(wd.code) }
+    else { SR = 5.5; SS = 17.5; cloudAdj = 0; rainLvl = 0 }
+    const h = hourNow(now), want = cfg.tema === 'auto' ? sceneFor(h) : cfg.tema, tm = now / 1000;
+    if (want !== curKey) { fromKey = curKey || want; curKey = want; trans0 = now }
+    const tp = fromKey === curKey ? 1 : clamp((now - trans0) / TRANS); if (tp >= 1) fromKey = curKey;
+
+    const active = ptr.inside && now - ptr.moved < 20000;
+    const tgt = hostOffset != null ? Math.round((hostOffset - .5) * 2 * 3 * cfg.parallax) : active ? Math.round(-(ptr.x - .5) * 2 * 3 * cfg.parallax) : 0;
+    curOx += Math.sign(tgt - curOx);                                    // no máximo uma célula por quadro
+    cloudPhase += .0015;
+    stepWindows(now, dt);
+
+    ctx.fillStyle = GROUND; ctx.fillRect(0, 0, W, H);
+    for (const win of wins) drawWindow(win, now, h, tp, tm);
+    overlay();
+  }
+
+  let last = -1e9;
+  (function loop(now) { if (now - last >= 1000 / cfg.fps - 4) { last = now; frame(now) } requestAnimationFrame(loop) })(0);
+
+  /* ---------- toque e mouse ---------- */
+  const setPtr = e => { ptr.x = clamp(e.clientX / Math.max(1, innerWidth)); ptr.y = clamp(e.clientY / Math.max(1, innerHeight)); ptr.inside = true; ptr.moved = performance.now() };
+  function tap(x01, y01) {
+    const px = x01 * W, py = y01 * H;
+    ripples.push({ c: Math.floor(clamp(x01) * cols), r: Math.floor(clamp(y01) * rows), t0: tick });
+    for (let i = wins.length - 1; i >= 0; i--) {                        // traz para a frente a janela tocada
+      const w = wins[i].rect; if (w && px >= w.x && px < w.x + w.w && py >= w.y && py < w.y + w.h) { wins.push(wins.splice(i, 1)[0]); break }
+    }
+  }
+  addEventListener('pointermove', setPtr, { passive: true });
+  addEventListener('pointerdown', e => { setPtr(e); tap(ptr.x, ptr.y) }, { passive: true });
+  addEventListener('pointerup', e => { if (e.pointerType === 'touch') ptr.inside = false }, { passive: true });
+  document.addEventListener('mouseout', e => { if (!e.relatedTarget) ptr.inside = false });
+  addEventListener('resize', () => { clearTimeout(resize.t); resize.t = setTimeout(resize, 150) });
+
+  /* ---------- ganchos para quem hospeda (Lively, Wallpaper Engine) ---------- */
+  const TEMAS = ['auto', 'dia', 'poente', 'noite'];
+  function prop(name, v) {
+    if (name === 'tema') { const t = typeof v === 'number' ? TEMAS[v] : String(v); if (TEMAS.includes(t)) cfg.tema = t }
+    else if (name === 'celula') { cfg.celula = clamp(+v, 3, 24); resize() }
+    else if (name === 'cidade') { const t = String(v || '').trim(); if (t && t.toLowerCase() !== WX.city) wxCity(t) }
+    else if (name === 'fps') cfg.fps = clamp(+v, 8, 12);
+    else if (name === 'parallax') cfg.parallax = clamp(+v, 0, 3);
+    else if (name === 'hora') cfg.hora = (v === '' || v == null || +v < 0) ? null : +v;
+  }
+  window.livelyPropertyListener = prop;
+  window.wallpaperPropertyListener = { applyUserProperties: p => { for (const key in p) if (p[key] && 'value' in p[key]) prop(key, p[key].value) } };
+  window.shellscape = {
+    point: (x, y) => { ptr.x = clamp(x); ptr.y = clamp(y); ptr.inside = true; ptr.moved = performance.now() },
+    tap, leave: () => { ptr.inside = false }, offset: x => { hostOffset = x == null ? null : clamp(x) }, prop, wx: d => { WX.data = d }
+  };
+
+  resize();
+})();
+</script>
+</body>
+</html>
