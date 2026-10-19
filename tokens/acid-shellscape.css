@@ -1,0 +1,86 @@
+/* Acid Shellscape — gerado de tokens.json (por Kevin) */
+/* O tema padrão é o primeiro (poente). Troque com data-theme="dia" | "noite" em <html>. */
+:root,
+[data-theme="poente"] {
+  --ground: #121014;
+  --ink: #ece8f0;
+  --ink-dim: #9a97a1;
+  --chrome: #5d5a62;
+  --line: #3a3641;
+  --yellow: #e6e61e;
+  --coral: #f28c6a;
+  --lilac: #e9c4ff;
+  --lime: #c6f23a;
+  --blue: #1f74c4;
+  --sky: #cfe0ea;
+  --scene-bg: #1d1535;
+  --sky-1: #1d1535;
+  --sky-2: #4b2a73;
+  --sky-3: #9a4f9e;
+  --sky-4: #e9c4ff;
+  --sky-5: #f28c6a;
+  --sky-6: #f6c54a;
+  --sun: #f28c6a;
+  --halo: #e6e61e;
+  --cloud: #ffd0e8;
+  --mtn-far: #6a3f8c;
+  --mtn-mid: #3a2459;
+  --mtn-near: #150f22;
+  --rim: #f28c6a;
+  --water-bg: #1d1535;
+  --water: #5a2f78;
+  --water-hi: #e9c4ff;
+  --reflection: #f28c6a;
+}
+[data-theme="dia"] {
+  --scene-bg: #0f3d73;
+  --sky-1: #0f4f93;
+  --sky-2: #1f74c4;
+  --sky-3: #3f89cc;
+  --sky-4: #7fb2de;
+  --sky-5: #cfe0ea;
+  --sky-6: #cfe0ea;
+  --sun: #e6e61e;
+  --halo: #f4f6f8;
+  --cloud: #ffffff;
+  --mtn-far: #8fb0d0;
+  --mtn-mid: #2f6aa8;
+  --mtn-near: #10304f;
+  --rim: #e8f0f6;
+  --water-bg: #0f3d73;
+  --water: #1f74c4;
+  --water-hi: #cfe0ea;
+  --reflection: #e6e61e;
+}
+[data-theme="noite"] {
+  --scene-bg: #090b18;
+  --sky-1: #07070c;
+  --sky-2: #0c0f24;
+  --sky-3: #101a3e;
+  --sky-4: #17285a;
+  --sky-5: #1f3a6e;
+  --sky-6: #1f3a6e;
+  --sun: #ece8f0;
+  --halo: #6f8fd0;
+  --cloud: #3a4d94;
+  --mtn-far: #26356b;
+  --mtn-mid: #161c3d;
+  --mtn-near: #0a0b16;
+  --rim: #8fa8d8;
+  --water-bg: #090b18;
+  --water: #16224a;
+  --water-hi: #6f8fd0;
+  --reflection: #ece8f0;
+}
+:root {
+  --cell-xs: 8px;
+  --cell-sm: 12px;
+  --cell: 16px;
+  --cell-lg: 24px;
+  --dot-pitch: 4px;
+  --chrome-bar: 22px;
+  --radius-none: 0px;
+  --radius-dot: 50%;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-display: "Inter Tight", "Helvetica Neue", Arial, sans-serif;
+}

@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acid Shellscape · imagem para células</title>
+</head>
+<body>
+<link rel="stylesheet" href="../tokens/acid-shellscape.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  html,body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font-mono)}
+  .wrap{display:flex;flex-direction:column;gap:12px;padding:16px;max-width:1000px}
+  .stage{position:relative;aspect-ratio:16/9;background:var(--ground);border:1px solid var(--line)}
+  .stage canvas{position:absolute;inset:0;width:100%;height:100%}
+  .ui{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:12px}
+  .ui button,.ui label.btn{font:600 12px var(--font-mono);color:var(--ink);background:transparent;border:1px solid var(--ink-dim);padding:7px 12px;cursor:pointer}
+  .ui button[aria-pressed="true"]{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+  .ui input[type=range]{accent-color:var(--yellow);width:110px}
+  .ui .grp{display:flex;gap:4px;align-items:center;color:var(--ink-dim)}
+  .hint{font-size:12px;color:var(--ink-dim)}
+</style>
+<div class="wrap">
+  <div class="stage" id="stage"><canvas id="cv" width="1024" height="576"></canvas></div>
+  <div class="ui">
+    <div class="grp" id="modes">receita
+      <button data-m="mix" aria-pressed="true">mix</button>
+      <button data-m="block" aria-pressed="false">blocos</button>
+      <button data-m="half" aria-pressed="false">meio-tom</button>
+      <button data-m="dots" aria-pressed="false">pontos</button>
+      <button data-m="ascii" aria-pressed="false">ascii</button>
+    </div>
+    <div class="grp">célula <input id="cell" type="range" min="8" max="32" step="2" value="16"></div>
+    <div class="grp" id="pals">tema
+      <button data-p="sky" aria-pressed="true">céu</button>
+      <button data-p="mono" aria-pressed="false">mono</button>
+      <button data-p="acid" aria-pressed="false">ácido</button>
+    </div>
+    <button id="replay">replay</button>
+    <label class="btn">imagem…<input id="file" type="file" accept="image/*" hidden></label>
+  </div>
+  <div class="hint">$ arraste uma imagem para o palco ou use o botão imagem…</div>
+</div>
+<script>
+(() => {
+  const cv = document.getElementById('cv'), ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
+  let mode = 'mix', palette = 'sky', cell = 16, cols, rows, lum, rgb, seed = 7, t0 = performance.now(), srcImg = null;
+  const DUR = 3200;
+
+  const hash = (a,b,s=seed)=>{let h=(a*374761393+b*668265263+s*2246822519)|0;h=(h^(h>>>13))*1274126177|0;return((h^(h>>>16))>>>0)/4294967295};
+  const vnoise = (x,y,s)=>{const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi,u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);
+    const a=hash(xi,yi,s),b=hash(xi+1,yi,s),c=hash(xi,yi+1,s),d=hash(xi+1,yi+1,s);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v};
+  const fbm = (x,y,s)=>{let v=0,a=.5;for(let i=0;i<4;i++){v+=a*vnoise(x,y,s+i);x*=2;y*=2;a/=2}return v};
+  const clamp = (v,a=0,b=1)=>Math.min(b,Math.max(a,v));
+
+  const PAL = {
+    sky:  {ramp:['#0f4f93','#1f74c4','#6fa6d6','#cfe0ea','#eef4f7'], dot:'#f4f6f8', hatch:'#ffffff', ascii:['#4e8fc9','#9cc3e4','#e8f0f6'], accent:'#e6e61e'},
+    mono: {ramp:['#1c1b20','#3a383f','#6f6c75','#aaa7b0','#e4e1e8'], dot:'#ece8f0', hatch:'#d8d5dc', ascii:['#8d8a93','#bdbac3','#ece8f0'], accent:'#e6e61e'},
+    acid: {ramp:['#2b2b2b','#c6f23a','#f28c6a','#e9c4ff','#1f74c4'], dot:'#e6e61e', hatch:'#121014', ascii:['#c6f23a','#f28c6a','#e9c4ff'], accent:'#c6f23a'}
+  };
+
+  function buildSource(){
+    cols = Math.ceil(W/cell); rows = Math.ceil(H/cell);
+    lum = new Float32Array(cols*rows); rgb = new Array(cols*rows);
+    if (srcImg) {                                   // imagem do usuário: corte tipo cover e leitura por célula
+      const o = document.createElement('canvas'); o.width = cols; o.height = rows;
+      const c = o.getContext('2d'), s = Math.max(cols/srcImg.width, rows/srcImg.height), w = srcImg.width*s, h = srcImg.height*s;
+      c.drawImage(srcImg,(cols-w)/2,(rows-h)/2,w,h);
+      const d = c.getImageData(0,0,cols,rows).data;
+      for (let i=0;i<cols*rows;i++){ const r=d[i*4],g=d[i*4+1],b=d[i*4+2]; rgb[i]=[r,g,b]; lum[i]=(.2126*r+.7152*g+.0722*b)/255; }
+    } else {                                        // sem imagem: nuvens em faixas
+      for (let r=0;r<rows;r++) for (let c=0;c<cols;c++) lum[r*cols+c] = clamp((fbm(c*.09,r*.16,3)-.14)*1.6);
+    }
+  }
+  const rampColor = l => { const R = PAL[palette].ramp; return R[Math.min(R.length-1, Math.floor(l*R.length))]; };
+
+  function paintBlock(x,y,s,i,l){ ctx.fillStyle = (srcImg && palette==='sky') ? `rgb(${rgb[i].join(',')})` : rampColor(l); ctx.fillRect(x,y,s,s); }
+  function paintHalf(x,y,s,i,l){
+    ctx.fillStyle = palette==='sky' ? '#0e2f52' : '#17151a'; ctx.fillRect(x,y,s,s);
+    ctx.save(); ctx.beginPath(); ctx.rect(x,y,s,s); ctx.clip();
+    ctx.strokeStyle = PAL[palette].hatch; ctx.globalAlpha = .25 + .75*l; ctx.lineWidth = 1;
+    const st = Math.max(2, Math.round(5 - l*3)); ctx.beginPath();
+    for (let k=-s;k<s*2;k+=st){ ctx.moveTo(x+k,y); ctx.lineTo(x+k+s,y+s); ctx.moveTo(x+k,y+s); ctx.lineTo(x+k+s,y); }
+    ctx.stroke(); ctx.restore();
+  }
+  function paintDots(x,y,s,i,l){
+    const g = 4, n = Math.floor(s/g), d = Math.max(1, Math.round(l*g-1)); ctx.fillStyle = PAL[palette].dot;
+    for (let a=0;a<n;a++) for (let b=0;b<n;b++) ctx.fillRect(x+a*g+1, y+b*g+1, d, d);
+  }
+  const RAMP = ' .:-=+*#%@$';
+  function paintAscii(x,y,s,i,l,c,r){
+    const A = PAL[palette].ascii; ctx.fillStyle = A[Math.floor(hash(c,r,11)*A.length)];
+    ctx.font = `${s*.95}px "JetBrains Mono", monospace`; ctx.textBaseline = 'top';
+    ctx.fillText(RAMP[Math.floor(l*(RAMP.length-1))], x + s*.1, y);
+  }
+  // receita por região, com ruído de baixa frequência: é o que dá cara de pintura
+  function modeAt(c,r,tm){
+    if (mode!=='mix') return mode;
+    const n = fbm(c*.07 + tm*.05, r*.11, 21);
+    return n<.38 ? 'block' : n<.55 ? 'half' : n<.72 ? 'dots' : 'ascii';
+  }
+
+  function frame(now){
+    const p = clamp((now-t0)/DUR), tm = now/1000;
+    ctx.fillStyle = '#121014'; ctx.fillRect(0,0,W,H);
+    const side = Math.floor(rows*.8), c0 = Math.floor((cols-side)/2), r0 = Math.floor((rows-side)/2);
+    for (let r=0;r<side;r++){
+      const delay = hash(r,0,3)*.45, reach = clamp((p*1.6-delay));                       // cada linha avança no seu ritmo
+      const glitch = hash(r, Math.floor(now/180), 5) > .93 ? Math.floor((hash(r,2,9)-.5)*10) : 0;
+      for (let c=0;c<side;c++){
+        const vis = (c/side) < reach - hash(c,r,1)*.12, x = (c0+c)*cell, y = (r0+r)*cell;
+        const sc = Math.min(cols-1, Math.max(0, c0+c+glitch)), i = (r0+r)*cols + sc;
+        if (vis) {
+          const m = modeAt(c,r,tm), l = lum[i];
+          if (m==='block') paintBlock(x,y,cell,i,l); else if (m==='half') paintHalf(x,y,cell,i,l);
+          else if (m==='dots') paintDots(x,y,cell,i,l); else paintAscii(x,y,cell,i,l,c,r);
+        } else if (p<1 && c/side < reach+.18 && hash(c,r,77)<.22) {                       // poeira na frente da varredura
+          ctx.fillStyle = PAL[palette].dot; for (let k=0;k<3;k++) ctx.fillRect(x+3+k*5, y+cell/2, 2, 2);
+        }
+      }
+    }
+    const bp = (p-.35)/.5;                                                                // blobs de destaque
+    if (bp>0) {
+      ctx.fillStyle = PAL[palette].accent;
+      const n = Math.floor(18*clamp(bp));
+      for (let k=0;k<n;k++){
+        const cx=(c0+hash(k,1,31)*side)*cell, cy=(r0+hash(k,2,31)*side)*cell, rad=cell*.45;
+        ctx.beginPath(); ctx.arc(cx,cy,rad,0,6.283); ctx.fill();
+        if (hash(k,3,31)>.4){ ctx.beginPath(); ctx.arc(cx+cell*.6,cy,rad,0,6.283); ctx.fill(); ctx.fillRect(cx,cy-rad,cell*.6,rad*2); }
+      }
+    }
+  }
+
+  let last = 0;
+  (function loop(now){ if (now-last > 1000/12){ last = now; frame(now); } requestAnimationFrame(loop); })(0);
+
+  const replay = () => { t0 = performance.now(); seed = Math.floor(Math.random()*999); };
+  document.getElementById('replay').onclick = replay;
+  document.getElementById('modes').addEventListener('click', e => { const b=e.target.closest('button'); if(!b) return; mode=b.dataset.m; [...e.currentTarget.querySelectorAll('button')].forEach(x=>x.setAttribute('aria-pressed',x===b)); });
+  document.getElementById('pals').addEventListener('click', e => { const b=e.target.closest('button'); if(!b) return; palette=b.dataset.p; [...e.currentTarget.querySelectorAll('button')].forEach(x=>x.setAttribute('aria-pressed',x===b)); });
+  document.getElementById('cell').oninput = e => { cell = +e.target.value; buildSource(); };
+  const loadImg = f => { if(!f) return; const im = new Image(); im.onload = () => { srcImg = im; buildSource(); replay(); }; im.src = URL.createObjectURL(f); };
+  document.getElementById('file').onchange = e => loadImg(e.target.files[0]);
+  const st = document.getElementById('stage');
+  st.addEventListener('dragover', e => e.preventDefault());
+  st.addEventListener('drop', e => { e.preventDefault(); loadImg(e.dataTransfer.files[0]); });
+
+  buildSource();
+})();
+</script>
+
+</body>
+</html>
