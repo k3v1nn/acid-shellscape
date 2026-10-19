@@ -8,7 +8,7 @@
 - **mouse**: as camadas andam em passos de uma célula (parallax), as nuvens seguem o vento do lado do mouse, o cursor vira um blob amarelo com halo de pontos e o clique solta um anel de caracteres.
 - **regras do estilo**: 10 fps, sem easing, sem gradiente, todo aleatório vem de `hash(coluna, linha, semente)`.
 
-Teste no navegador: `python3 -m http.server 8000` na raiz do repositório e abra `http://localhost:8000/wallpaper/`.
+Teste no navegador: `python3 -m http.server 8765 --bind 127.0.0.1` na raiz do repositório e abra `http://127.0.0.1:8765/wallpaper/`.
 
 Parâmetros de URL: `?tema=dia|poente|noite` · `&hora=18.5` · `&rapido=1` (1 h por segundo) · `&linhas=36` · `&fps=10` · `&parallax=1` · `&cursor=0` · `&hud=1` · `&fim=1` · `&semente=5`. A tecla **p** salva um png.
 
@@ -30,7 +30,7 @@ Não existe um jeito único; depende do ambiente:
 
 - **KDE Plasma 6**: o plugin *Wallpaper Engine for KDE* tem suporte parcial a wallpapers web. Interação de mouse não está documentada, então teste antes de contar com ela.
 - **Sway, Hyprland e outros wlroots (e KDE)**: uma janelinha WebKitGTK presa na camada `background` com `gtk-layer-shell` mostra o `index.html` com mouse. É um script pequeno de Python, ainda não escrito aqui.
-- **GNOME**: não tem layer-shell. O caminho é um app de wallpaper web (por exemplo o Hidamari), em geral sem mouse, ou o plano B abaixo.
+- **GNOME**: não tem layer-shell. O Hidamari lista o modo *Página web* e diz suportar GNOME Wayland, mas não documenta mouse. Ele é Flatpak e pode não enxergar a pasta do arquivo: prefira apontar para uma URL http (`http://127.0.0.1:8765/wallpaper/index.html`, com o servidor de pé antes do Hidamari abrir). O Hanabi (extensão do GNOME Shell) parece ser só vídeo.
 
 ## bateria
 
