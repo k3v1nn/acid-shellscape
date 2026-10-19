@@ -1,0 +1,34 @@
+{
+  "tema": {
+    "type": "dropdown",
+    "text": "tema",
+    "value": 0,
+    "items": ["automático (pela hora)", "dia", "pôr do sol", "noite"]
+  },
+  "celula": {
+    "type": "slider",
+    "text": "células no lado curto",
+    "value": 36,
+    "min": 20,
+    "max": 72,
+    "step": 4
+  },
+  "parallax": {
+    "type": "slider",
+    "text": "parallax do mouse",
+    "value": 1,
+    "min": 0,
+    "max": 3,
+    "step": 1
+  },
+  "cursor": {
+    "type": "checkbox",
+    "text": "cursor redondo",
+    "value": true
+  },
+  "hud": {
+    "type": "checkbox",
+    "text": "etiquetas e hora",
+    "value": false
+  }
+}
