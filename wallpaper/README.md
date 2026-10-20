@@ -16,9 +16,9 @@ Parâmetros de URL: `?tema=dia|poente|noite` · `&hora=18.5` · `&rapido=1` (1 h
 
 Sem internet o canvas cai em `monospace`. Para ficar idêntico, coloque `JetBrainsMono-Regular.woff2` em `wallpaper/fonts/`.
 
-## janelas (versão com 12 receitas)
+## sobre este pacote
 
-`janelas.html` é a versão em janelas: paisagem, sol, ondas, terminal, blocos, meio-tom, pontos, chuva, log, blobs, clima e relógio. Em tela larga usa célula de 12 px; em retrato, 5,6 dp. Parâmetros: `?tema=` · `&hora=` · `&celula=` · `&fim=1` · `&cidade=Salvador` · `&lat=` · `&lon=`. O pacote do Wallpaper Engine está em `engine/` (veja o README de lá).
+Este diretório guarda o wallpaper de paisagem em tela cheia (`index.html`) e o pacote do Lively.
 
 ## instalar
 
