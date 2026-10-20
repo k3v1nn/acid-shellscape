@@ -36,8 +36,14 @@ src/
   cells.js               as cinco receitas de célula (módulo ES, sem dependências)
   landscape.html         paisagem completa, 3 temas, entra por camadas
   image-to-cells.html    arraste uma imagem sua e ela vira pintura de terminal
-docs/                    capturas de tela
+docs/
+  janelas.md             guia de design das janelas, fundos, música e várias telas
+  *.png                  capturas de tela
 ```
+
+## Wallpaper
+
+A pasta [`wallpaper/`](wallpaper/) tem a paisagem como papel de parede interativo (pacote para Lively e instruções para Wallpaper Engine). Para janelas, fundos e interação, veja [`docs/janelas.md`](docs/janelas.md).
 
 ## Como ver
 
@@ -97,6 +103,10 @@ Mais o **blob**: círculos que se sobrepõem e se fundem, a assinatura do sol e 
 - Sem gradiente suave, blur, sombra ou cantos arredondados (só nos blobs).
 - Texto de interface soa como código: minúsculas, mono, `const hora = 18;`.
 - No máximo cinco cores de destaque por cena, e uma domina.
+- Tamanhos em células, não em px: a célula sai da tela (≈90 linhas na paisagem), e só a moldura das janelas usa px.
+- Dados reais viram cena (hora, sol, nuvens, chuva), mas sem rede o desenho continua.
+- Reação à música mexe em raio, densidade, fase e velocidade; nunca na estrutura. Sem áudio, tudo igual.
+- Ver [`docs/janelas.md`](docs/janelas.md) para janelas, fundos e interação.
 
 ## Créditos
 
