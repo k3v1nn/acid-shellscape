@@ -114,4 +114,4 @@ Criado por **Kevin** ([@k3v1nn](https://github.com/k3v1nn)).
 
 Fontes: [JetBrains Mono](https://www.jetbrains.com/lp/mono/) e [Inter Tight](https://fonts.google.com/specimen/Inter+Tight), carregadas pelo Google Fonts.
 
-© 2026 Kevin. Todos os direitos reservados por enquanto (repositório privado; a licença será definida antes de abrir).
+Licença [MIT](LICENSE). © 2026 Kevin.

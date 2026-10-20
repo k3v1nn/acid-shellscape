@@ -1,0 +1,29 @@
+# segredos e credenciais: nunca versionar
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+credentials*.json
+secrets*.json
+
+# dependências e builds
+node_modules/
+dist/
+build/
+.cache/
+
+# sistema e editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# logs e temporários
+*.log
+*.tmp
+__pycache__/

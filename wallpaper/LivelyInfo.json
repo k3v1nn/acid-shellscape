@@ -5,7 +5,7 @@
   "Preview": "thumbnail.png",
   "Desc": "Paisagem abstrata feita de células de terminal. Muda com a hora do dia e reage ao mouse.",
   "Author": "Kevin",
-  "License": "",
+  "License": "MIT",
   "Contact": "https://github.com/k3v1nn",
   "Type": 1,
   "FileName": "index.html"
