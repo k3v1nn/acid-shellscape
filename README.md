@@ -30,20 +30,21 @@
 
 ```
 tokens/
-  tokens.json            cores (3 temas), tipografia, espaçamento, raio
+  tokens.json            cores (8 temas), tipografia, espaçamento, raio
   acid-shellscape.css    as mesmas variáveis, prontas para importar
 src/
   cells.js               as cinco receitas de célula (módulo ES, sem dependências)
   landscape.html         paisagem completa, 3 temas, entra por camadas
   image-to-cells.html    arraste uma imagem sua e ela vira pintura de terminal
 docs/
-  janelas.md             guia de design das janelas, fundos, música e várias telas
+  janelas.md             guia de design: janelas, barras, fundos, temas, paletas, música, Android
+  galeria.md             variações do estilo, com capturas
   *.png                  capturas de tela
 ```
 
 ## Wallpaper
 
-A pasta [`wallpaper/`](wallpaper/) tem a paisagem como papel de parede interativo (pacote para Lively e instruções para Wallpaper Engine). Para janelas, fundos e interação, veja [`docs/janelas.md`](docs/janelas.md).
+A pasta [`wallpaper/`](wallpaper/) tem a paisagem como papel de parede interativo (pacote para Lively e instruções para Wallpaper Engine). Para janelas, fundos, temas e interação, veja [`docs/janelas.md`](docs/janelas.md) e a [galeria](docs/galeria.md).
 
 ## Como ver
 
@@ -58,7 +59,7 @@ python3 -m http.server 8000
 
 ## Como usar em outro projeto
 
-**1. Cores e medidas.** Importe o CSS e escolha o tema em `<html data-theme="poente | dia | noite">` (o padrão é `poente`):
+**1. Cores e medidas.** Importe o CSS e escolha o tema em `<html data-theme="poente | dia | noite | neon | aurora | doce | deserto | tropical">` (o padrão é `poente`):
 
 ```html
 <link rel="stylesheet" href="tokens/acid-shellscape.css">
@@ -106,7 +107,7 @@ Mais o **blob**: círculos que se sobrepõem e se fundem, a assinatura do sol e 
 - Tamanhos em células, não em px: a célula sai da tela (≈90 linhas na paisagem), e só a moldura das janelas usa px.
 - Dados reais viram cena (hora, sol, nuvens, chuva), mas sem rede o desenho continua.
 - Reação à música mexe em raio, densidade, fase e velocidade; nunca na estrutura. Sem áudio, tudo igual.
-- Ver [`docs/janelas.md`](docs/janelas.md) para janelas, fundos e interação.
+- Ver [`docs/janelas.md`](docs/janelas.md) para janelas, fundos, temas e interação, e a [galeria](docs/galeria.md) para as variações.
 
 ## Créditos
 

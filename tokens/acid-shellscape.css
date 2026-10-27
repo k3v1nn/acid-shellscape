@@ -1,5 +1,5 @@
 /* Acid Shellscape — gerado de tokens.json (por Kevin) */
-/* O tema padrão é o primeiro (poente). Troque com data-theme="dia" | "noite" em <html>. */
+/* O tema padrão é o primeiro (poente). Troque com data-theme="dia" | "noite" | "neon" | "aurora" | "doce" | "deserto" | "tropical" em <html>. */
 :root,
 [data-theme="poente"] {
   --ground: #121014;
@@ -73,6 +73,106 @@
   --water: #16224a;
   --water-hi: #6f8fd0;
   --reflection: #ece8f0;
+}
+[data-theme="neon"] {
+  --scene-bg: #14052e;
+  --sky-1: #12002b;
+  --sky-2: #3a0a6b;
+  --sky-3: #8a1f8f;
+  --sky-4: #e0409a;
+  --sky-5: #ff7a5c;
+  --sky-6: #ffc25a;
+  --sun: #ffe14a;
+  --halo: #ff4fa3;
+  --cloud: #ff9ad5;
+  --mtn-far: #7a2f9e;
+  --mtn-mid: #3d1566;
+  --mtn-near: #14072a;
+  --rim: #35e8ff;
+  --water-bg: #14052e;
+  --water: #8a2fbf;
+  --water-hi: #35e8ff;
+  --reflection: #ff4fa3;
+}
+[data-theme="aurora"] {
+  --scene-bg: #061620;
+  --sky-1: #040b14;
+  --sky-2: #0a1f33;
+  --sky-3: #0f3a4a;
+  --sky-4: #14606a;
+  --sky-5: #1f8a7a;
+  --sky-6: #1f8a7a;
+  --sun: #f4fff4;
+  --halo: #7cffc4;
+  --cloud: #2a5a6a;
+  --mtn-far: #1d4a5a;
+  --mtn-mid: #0f2a38;
+  --mtn-near: #060f16;
+  --rim: #7cffc4;
+  --water-bg: #061620;
+  --water: #14606a;
+  --water-hi: #7cffc4;
+  --reflection: #f4fff4;
+}
+[data-theme="doce"] {
+  --scene-bg: #5a6cff;
+  --sky-1: #7fd6ff;
+  --sky-2: #a9e0ff;
+  --sky-3: #d6c8ff;
+  --sky-4: #ffc8e8;
+  --sky-5: #ffe0c0;
+  --sky-6: #ffe0c0;
+  --sun: #fff27a;
+  --halo: #ffffff;
+  --cloud: #ffffff;
+  --mtn-far: #ff9ad0;
+  --mtn-mid: #b98cff;
+  --mtn-near: #6a7cff;
+  --rim: #ffffff;
+  --water-bg: #5a6cff;
+  --water: #8aa0ff;
+  --water-hi: #ffffff;
+  --reflection: #fff27a;
+}
+[data-theme="deserto"] {
+  --scene-bg: #3a1620;
+  --sky-1: #2b1b4a;
+  --sky-2: #7a3a6a;
+  --sky-3: #d9605a;
+  --sky-4: #f6a04a;
+  --sky-5: #ffd27a;
+  --sky-6: #ffd27a;
+  --sun: #fff0b0;
+  --halo: #ffd27a;
+  --cloud: #ffb27a;
+  --mtn-far: #c2603f;
+  --mtn-mid: #8a3a30;
+  --mtn-near: #3a1620;
+  --rim: #ffd27a;
+  --water-bg: #3a1620;
+  --water: #c2603f;
+  --water-hi: #ffd27a;
+  --reflection: #fff0b0;
+}
+[data-theme="tropical"] {
+  --scene-bg: #004a6b;
+  --sky-1: #003b5c;
+  --sky-2: #006d8f;
+  --sky-3: #00a8b5;
+  --sky-4: #6fe0c8;
+  --sky-5: #e8fff0;
+  --sky-6: #e8fff0;
+  --sun: #ffe94a;
+  --halo: #ffffff;
+  --cloud: #ffffff;
+  --mtn-far: #00a88a;
+  --mtn-mid: #006b5e;
+  --mtn-near: #003a3a;
+  --rim: #e8fff0;
+  --water-bg: #004a6b;
+  --water: #00a8b5;
+  --water-hi: #e8fff0;
+  --reflection: #ffe94a;
 }
 :root {
   --cell-xs: 8px;
