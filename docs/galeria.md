@@ -32,6 +32,16 @@ Variações do estilo, todas feitas com as mesmas quatro receitas de célula. As
 
 <p align="center"><img src="fundos-novos.png" alt="Fundos estrelas, cidade, horizonte e matriz" width="760"></p>
 
+## Cenários naturais
+
+`montanhas` (original), `dunas`, `floresta`, `praia`, `vulcao`, `neve`, `campo` e `sertao`, aqui no pôr do sol e como fundo `paisagem`. Regras em [janelas.md](janelas.md#14-cenários-naturais).
+
+<p align="center"><img src="cenarios.png" alt="Os oito cenários" width="760"></p>
+
+Combinados com temas coloridos:
+
+<p align="center"><img src="cenarios-temas.png" alt="Cenários em temas coloridos" width="760"></p>
+
 ## Conjuntos de janelas
 
 `celular`, `todas`, `jogos`, `dados`, `arte`, `calma` e `nenhuma`. Aqui, `jogos` sobre a noite:

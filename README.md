@@ -37,7 +37,7 @@ src/
   landscape.html         paisagem completa, 3 temas, entra por camadas
   image-to-cells.html    arraste uma imagem sua e ela vira pintura de terminal
 docs/
-  janelas.md             guia de design: janelas, barras, fundos, temas, paletas, música, Android
+  janelas.md             guia de design: janelas, barras, fundos, temas, paletas, cenários, música, Android
   galeria.md             variações do estilo, com capturas
   *.png                  capturas de tela
 ```

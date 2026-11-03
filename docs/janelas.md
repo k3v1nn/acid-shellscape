@@ -1,6 +1,6 @@
 # Janelas: referência de design
 
-As janelas de Mac clássico flutuando sobre um fundo de células são uma extensão da identidade para papéis de parede. Este guia junta o que funcionou, para reaproveitar em qualquer projeto no estilo. Tudo aqui vale junto com as regras do [README](../README.md): quatro receitas de célula, movimento em passos, sem gradiente, hash em vez de `Math.random()`. A [galeria](galeria.md) mostra as variações (estilos de barra, paletas, temas, fundos e conjuntos de janelas).
+As janelas de Mac clássico flutuando sobre um fundo de células são uma extensão da identidade para papéis de parede. Este guia junta o que funcionou, para reaproveitar em qualquer projeto no estilo. Tudo aqui vale junto com as regras do [README](../README.md): quatro receitas de célula, movimento em passos, sem gradiente, hash em vez de `Math.random()`. A [galeria](galeria.md) mostra as variações (estilos de barra, paletas, temas, cenários, fundos e conjuntos de janelas).
 
 <p align="center">
   <img src="janelas-desktop.png" alt="Desktop: janelas sobre fundo de pontos" width="720"><br>
@@ -130,7 +130,7 @@ Atrás das janelas, nunca competindo com elas. A parte parada é pintada uma vez
 | `cidade` | skyline de blocos em `ground` mais claro, janelinhas `yellow` acesas por hash, chuva fina de pontos embaixo |
 | `horizonte` | sol de bandas (blobs em `yellow`) nascendo atrás de uma grade em perspectiva |
 | `matriz` | colunas de caracteres caindo em `lime` bem escuro, uma cabeça `yellow` por coluna |
-| `paisagem` | a própria paisagem em tela cheia, com tudo atrás das janelas |
+| `paisagem` | a própria paisagem em tela cheia, com tudo atrás das janelas, em qualquer um dos oito [cenários](#14-cenários-naturais) |
 
 <p align="center">
   <img src="fundos-novos.png" alt="Fundos estrelas, cidade, horizonte e matriz" width="720">
@@ -195,7 +195,40 @@ A paleta recolore **tudo** (cena e interface) a partir das cores-base, sem mexer
 
 Tema e paleta se combinam: o tema escolhe a cena, a paleta troca as cores. Para o resultado mais coerente, use `fosforo`/`ambar`/`brasa` em cenas escuras (poente, noite, aurora) e `vapor`/`floresta` em qualquer uma.
 
-## 14. Conjuntos de janelas
+## 14. Cenários naturais
+
+A paisagem tem oito jeitos. O céu, o sol, as nuvens e o relógio de hora do dia são os mesmos; mudam o **terreno**, o **piso** abaixo do horizonte, os **enfeites** e os **efeitos**. Valem para a janela `paisagem.js`, para o fundo `paisagem` (tela inteira) e, no Android, para o widget de paisagem. Todas as cores vêm do tema e da paleta: a floresta de um tema rosa é roxa, e a de um tema verde é verde.
+
+| cenário | terreno | piso | enfeites e efeitos |
+|---|---|---|---|
+| `montanhas` | três cordilheiras de ruído (longe meio-tom, meio bloco, perto caractere) | água com reflexo | o original |
+| `dunas` | cristas suaves de ruído "cavado" (`1 − \|2v − 1\|`), terreno iluminado pela cor da borda | areia com grãos `. : - ,` correndo | rajadas de vento em `-` |
+| `floresta` | colinas de ruído | lago | pinheiros de bloco com ponta `^` em duas camadas, névoa de pontos rente à água, dois pássaros |
+| `praia` | só ilhas distantes; horizonte baixo (50%) | mar aberto e faixa de areia com espuma `~` ondulando | quatro gaivotas `v ^` |
+| `vulcao` | um cone central com cratera plana, colinas baixas | lava escura que reflete a cratera | cratera em `halo` e `sol`, veios `\|` descendo, fumaça de meio-tom/pontos, brasas `.` subindo |
+| `neve` | picos altos com calota branca proporcional à altura | campo de neve | neve `* .` caindo, pinheiros esparsos |
+| `campo` | colinas baixas e largas, faixas de plantação (uma linha em três mais clara) | grama `" ,` balançando | copas `@` de uma ou duas células, três pássaros |
+| `sertao` | mesas de topo plano em degraus, sol grande e baixo | terra rachada `_ - / \` | cactos de tronco `\|` com até dois braços `=`, miragem `~` rente ao horizonte |
+
+<p align="center">
+  <img src="cenarios.png" alt="Os oito cenários no pôr do sol: montanhas, dunas, floresta, praia, vulcão, neve, campo e sertão" width="720">
+</p>
+
+Os mesmos cenários em outros temas (neve na noite, sertão no deserto, praia no tropical, vulcão no neon, floresta na aurora, campo no doce):
+
+<p align="center">
+  <img src="cenarios-temas.png" alt="Cenários combinados com temas coloridos" width="720">
+</p>
+
+Regras para criar um cenário novo:
+
+- Terreno em três camadas (0 longe, 2 perto) com as receitas de sempre: longe é meio-tom, meio é bloco, perto é caractere. Enfeites (árvores, cactos) ficam **em cima do terreno da própria camada** e são escondidos pela camada mais perto.
+- Tudo estático (terreno, enfeites) é calculado uma vez por cena; o que se mexe (neve, fumaça, pássaros, névoa) é desenhado por cima, por hash do quadro, sem `Math.random()`.
+- Nada de cor fixa: use as cores do tema (`mtn`, `rim`, `sun`, `halo`, `cloud`, `water`) misturadas entre si. As exceções são o branco da neve e da espuma.
+- Sem gradiente: o relevo vem de blocos, faixas por linha e glifos, não de degradê.
+- O mais caro é o fundo `paisagem` em tela cheia; uma cena nova não deve custar mais que as outras.
+
+## 15. Conjuntos de janelas
 
 Um **conjunto** diz quais janelas existem. A quantidade pedida ajusta o conjunto (relógio, clima e paisagem têm prioridade; sobrando, repete receitas).
 
@@ -213,15 +246,16 @@ Um **conjunto** diz quais janelas existem. A quantidade pedida ajusta o conjunto
   <img src="preset-jogos.png" alt="Conjunto jogos sobre a noite" width="720">
 </p>
 
-## 15. Ondas de música
+## 16. Ondas de música
 
 Opcional, independente das janelas: uma faixa de ondas de blocos na parte de baixo da tela que reage ao áudio (`ondas` ligada/desligada). Mesmas regras da seção 7: só raio, fase e velocidade. Ela só aparece quando há música tocando e some sem áudio.
 
-## 16. Android (widgets, bloqueio e posições)
+## 17. Android (widgets, bloqueio e posições)
 
 Detalhes que valem só no app de celular:
 
 - **Dois papéis de parede**: o app registra um serviço para a tela de bloqueio e outro para a tela inicial/launcher, cada um com seu próprio conjunto de ajustes (tema, célula, fundo, janelas, barra, paleta, quantidade). Isso permite, por exemplo, `neon` com `todas` no bloqueio e `preto` com `nenhuma` atrás dos apps.
+- **Cenários**: dois ajustes, o cenário da `paisagem.js` e o do fundo `paisagem` (igual, um dos oito ou sortear). O widget de paisagem usa o da janela do papel de bloqueio.
 - **Editor de posições**: arrastar as janelas numa prévia e salvar. A posição é guardada em frações da tela e continua encaixando na grade de células.
 - **Widgets**: há seis widgets (relógio, clima, tocando, paisagem, agenda e bateria), cada um uma janela. São bitmaps desenhados pelas mesmas receitas, com a moldura escolhida, e uma margem transparente em volta para os cantos arredondados do launcher não cortarem a borda. O tamanho do widget define a célula (a maior que cabe), e o conteúdo é redesenhado nessa grade em vez de esticado.
 - **Música real**: forma de onda via `Visualizer` (precisa da permissão de microfone/áudio) e título, artista e progresso via sessão de mídia (acesso a notificações). Sem permissão, as janelas ficam como sem áudio.
@@ -229,7 +263,7 @@ Detalhes que valem só no app de celular:
 
 > Estado: o app Android é compilado por CI, mas ainda não foi testado em aparelho real; trate os itens acima como projeto.
 
-## 17. O que evitar
+## 18. O que evitar
 
 - Fade, easing, blur, sombra, gradiente (o "gradiente" é sempre bandas de células).
 - Tamanhos em px para conteúdo; só moldura e quadrado vazado usam px.
